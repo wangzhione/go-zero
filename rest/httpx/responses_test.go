@@ -84,14 +84,10 @@ func TestError(t *testing.T) {
 				headers: make(map[string][]string),
 			}
 			if test.errorHandler != nil {
-				errorLock.RLock()
 				prev := errorHandler
-				errorLock.RUnlock()
 				SetErrorHandler(test.errorHandler)
 				defer func() {
-					errorLock.Lock()
 					errorHandler = prev
-					errorLock.Unlock()
 				}()
 			}
 			Error(&w, errors.New(test.input))
@@ -144,13 +140,9 @@ func TestOkJson(t *testing.T) {
 	})
 
 	t.Run("with handler", func(t *testing.T) {
-		okLock.RLock()
 		prev := okHandler
-		okLock.RUnlock()
 		t.Cleanup(func() {
-			okLock.Lock()
 			okHandler = prev
-			okLock.Unlock()
 		})
 
 		SetOkHandler(func(_ context.Context, v interface{}) any {
@@ -178,13 +170,9 @@ func TestOkJsonCtx(t *testing.T) {
 	})
 
 	t.Run("with handler", func(t *testing.T) {
-		okLock.RLock()
 		prev := okHandler
-		okLock.RUnlock()
 		t.Cleanup(func() {
-			okLock.Lock()
 			okHandler = prev
-			okLock.Unlock()
 		})
 
 		SetOkHandler(func(_ context.Context, v interface{}) any {
@@ -391,14 +379,10 @@ func TestErrorCtx(t *testing.T) {
 				headers: make(map[string][]string),
 			}
 			if test.errorHandlerCtx != nil {
-				errorLock.RLock()
 				prev := errorHandler
-				errorLock.RUnlock()
 				SetErrorHandlerCtx(test.errorHandlerCtx)
 				defer func() {
-					errorLock.Lock()
 					test.errorHandlerCtx = prev
-					errorLock.Unlock()
 				}()
 			}
 			ErrorCtx(context.Background(), &w, errors.New(test.input))

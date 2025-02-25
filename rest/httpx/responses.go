@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sync"
 
 	"github.com/zeromicro/go-zero/core/logc"
 	"github.com/zeromicro/go-zero/core/logx"
@@ -17,9 +16,8 @@ import (
 
 var (
 	errorHandler func(context.Context, error) (int, any)
-	errorLock    sync.RWMutex
-	okHandler    func(context.Context, any) any
-	okLock       sync.RWMutex
+
+	okHandler func(context.Context, any) any
 )
 
 // Error writes err into w.
@@ -29,7 +27,8 @@ func Error(w http.ResponseWriter, err error, fns ...func(w http.ResponseWriter, 
 
 // ErrorCtx writes err into w.
 func ErrorCtx(ctx context.Context, w http.ResponseWriter, err error,
-	fns ...func(w http.ResponseWriter, err error)) {
+	fns ...func(w http.ResponseWriter, err error),
+) {
 	writeJson := func(w http.ResponseWriter, code int, v any) {
 		WriteJsonCtx(ctx, w, code, v)
 	}
@@ -43,22 +42,16 @@ func Ok(w http.ResponseWriter) {
 
 // OkJson writes v into w with 200 OK.
 func OkJson(w http.ResponseWriter, v any) {
-	okLock.RLock()
-	handler := okHandler
-	okLock.RUnlock()
-	if handler != nil {
-		v = handler(context.Background(), v)
+	if okHandler != nil {
+		v = okHandler(context.Background(), v)
 	}
 	WriteJson(w, http.StatusOK, v)
 }
 
 // OkJsonCtx writes v into w with 200 OK.
 func OkJsonCtx(ctx context.Context, w http.ResponseWriter, v any) {
-	okLock.RLock()
-	handlerCtx := okHandler
-	okLock.RUnlock()
-	if handlerCtx != nil {
-		v = handlerCtx(ctx, v)
+	if okHandler != nil {
+		v = okHandler(ctx, v)
 	}
 	WriteJsonCtx(ctx, w, http.StatusOK, v)
 }
@@ -67,8 +60,6 @@ func OkJsonCtx(ctx context.Context, w http.ResponseWriter, v any) {
 // Notice: SetErrorHandler and SetErrorHandlerCtx set the same error handler.
 // Keeping both SetErrorHandler and SetErrorHandlerCtx is for backward compatibility.
 func SetErrorHandler(handler func(error) (int, any)) {
-	errorLock.Lock()
-	defer errorLock.Unlock()
 	errorHandler = func(_ context.Context, err error) (int, any) {
 		return handler(err)
 	}
@@ -78,15 +69,11 @@ func SetErrorHandler(handler func(error) (int, any)) {
 // Notice: SetErrorHandler and SetErrorHandlerCtx set the same error handler.
 // Keeping both SetErrorHandler and SetErrorHandlerCtx is for backward compatibility.
 func SetErrorHandlerCtx(handlerCtx func(context.Context, error) (int, any)) {
-	errorLock.Lock()
-	defer errorLock.Unlock()
 	errorHandler = handlerCtx
 }
 
 // SetOkHandler sets the response handler, which is called on calling OkJson and OkJsonCtx.
 func SetOkHandler(handler func(context.Context, any) any) {
-	okLock.Lock()
-	defer okLock.Unlock()
 	okHandler = handler
 }
 
@@ -125,14 +112,10 @@ func WriteJsonCtx(ctx context.Context, w http.ResponseWriter, code int, v any) {
 }
 
 func buildErrorHandler(ctx context.Context) func(error) (int, any) {
-	errorLock.RLock()
-	handlerCtx := errorHandler
-	errorLock.RUnlock()
-
 	var handler func(error) (int, any)
-	if handlerCtx != nil {
+	if errorHandler != nil {
 		handler = func(err error) (int, any) {
-			return handlerCtx(ctx, err)
+			return errorHandler(ctx, err)
 		}
 	}
 
@@ -141,7 +124,8 @@ func buildErrorHandler(ctx context.Context) func(error) (int, any) {
 
 func doHandleError(w http.ResponseWriter, err error, handler func(error) (int, any),
 	writeJson func(w http.ResponseWriter, code int, v any),
-	fns ...func(w http.ResponseWriter, err error)) {
+	fns ...func(w http.ResponseWriter, err error),
+) {
 	if handler == nil {
 		if len(fns) > 0 {
 			for _, fn := range fns {
